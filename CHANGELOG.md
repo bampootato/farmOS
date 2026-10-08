@@ -40,6 +40,16 @@ the abandoned `oomphinc/composer-installers-extender` project:
 
 - [Fix JSON:API entity filter access #1104](https://github.com/farmOS/farmOS/pull/1104)
 
+### Security
+
+- Harden data stream and sensor private key handling: deny access when no
+  private key is set, compare keys in constant time, generate new keys with a
+  cryptographically secure random generator, and validate `limit`/`offset`
+  API parameters (invalid values return a 422 response instead of a 500 error
+  when the JSON:API module is not enabled). Private keys can also be provided via an `X-Private-Key`
+  header. Existing keys are not regenerated automatically; regenerate them to
+  benefit from the stronger generator.
+
 ## [4.0.6] 2026-09-16
 
 ### Fixed

@@ -10,7 +10,6 @@ use Drupal\Core\DependencyInjection\AutowireTrait;
 use Drupal\asset\Entity\AssetInterface;
 use Drupal\data_stream\DataStreamTypeManager;
 use Drupal\data_stream\Entity\DataStreamInterface;
-use Drupal\jsonapi\Exception\UnprocessableHttpEntityException;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -18,6 +17,7 @@ use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\MethodNotAllowedHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
+use Symfony\Component\HttpKernel\Exception\UnprocessableEntityHttpException;
 
 /**
  * Handles requests for basic data streams associated with a sensor.
@@ -98,13 +98,13 @@ class SensorDataController extends ControllerBase {
         $max_limit = 100000;
         $limit = $max_limit;
         if (isset($params['limit'])) {
-          $limit = $params['limit'];
+          $limit = filter_var($params['limit'], FILTER_VALIDATE_INT);
 
-          // Bail if more than the max is requested.
-          // Only allow 100k max data points to prevent exhausting PHP's memory,
-          // which is a potential DDoS vector.
-          if ($limit > $max_limit) {
-            throw new UnprocessableHttpEntityException();
+          // Bail if the limit is not a positive integer, or if more than the
+          // max is requested. Only allow 100k max data points to prevent
+          // exhausting PHP's memory, which is a potential DDoS vector.
+          if ($limit === FALSE || $limit < 1 || $limit > $max_limit) {
+            throw new UnprocessableEntityHttpException();
           }
         }
         $params['limit'] = $limit;
@@ -149,7 +149,8 @@ class SensorDataController extends ControllerBase {
   /**
    * Helper function to determine if the request provides a correct private_key.
    *
-   * Private key may be passed via query string or request body.
+   * Private key may be passed via X-Private-Key header, query string or
+   * request body.
    *
    * @param \Drupal\asset\Entity\AssetInterface $asset
    *   The asset.
@@ -160,9 +161,15 @@ class SensorDataController extends ControllerBase {
    *   If the request has access.
    */
   protected function requestHasValidPrivateKey(AssetInterface $asset, Request $request) {
-    $private_key = $asset->get('private_key')->value;
-    $request_private_key = $request->query->get('private_key', NULL) ?? $request->request->get('private_key', '');
-    return $private_key == $request_private_key;
+    $private_key = (string) $asset->get('private_key')->value;
+
+    // Deny access if the asset does not have a private key.
+    if ($private_key === '') {
+      return FALSE;
+    }
+
+    $request_private_key = $request->headers->get('X-Private-Key') ?? $request->query->get('private_key') ?? $request->request->get('private_key');
+    return is_string($request_private_key) && hash_equals($private_key, $request_private_key);
   }
 
   /**

@@ -135,6 +135,35 @@ class DataStreamTest extends DataStreamTestBase {
     $data = Json::decode($response->getContent());
     $this->assertEquals(10, count($data));
 
+    // Test that invalid limit params are rejected.
+    foreach ([-1, 0, 'abc', 100001] as $limit) {
+      $request = Request::create($uri, 'GET',
+        ['private_key' => $this->dataStream->getPrivateKey(), 'limit' => $limit]
+      );
+      $response = $this->processRequest($request);
+      $this->assertEquals(422, $response->getStatusCode());
+    }
+
+    // Test that a negative offset is treated as 0.
+    $request = Request::create($uri, 'GET',
+      ['private_key' => $this->dataStream->getPrivateKey(), 'limit' => 10, 'offset' => -10]
+    );
+    $response = $this->processRequest($request);
+    $this->assertEquals(200, $response->getStatusCode());
+    $data = Json::decode($response->getContent());
+    $this->assertEquals(10, count($data));
+
+    // Test that the private key can be provided via the X-Private-Key header.
+    $request = Request::create($uri, 'GET');
+    $request->headers->set('X-Private-Key', $this->dataStream->getPrivateKey());
+    $response = $this->processRequest($request);
+    $this->assertEquals(200, $response->getStatusCode());
+
+    // Test that an incorrect private key is denied.
+    $request = Request::create($uri, 'GET', ['private_key' => 'incorrect']);
+    $response = $this->processRequest($request);
+    $this->assertEquals(403, $response->getStatusCode());
+
     // Test the start and end params.
     // Limit to 15 days of data, which should return 15 results.
     $end_time = $this->startTime + (86400 * 14);
@@ -215,6 +244,19 @@ class DataStreamTest extends DataStreamTestBase {
     $plugin = $this->dataStream->getPlugin();
     $data = $plugin->storageGet($this->dataStream, ['limit' => 5, 'end' => $timestamp]);
     $this->assertTrue(!in_array($bad_data_point, $data));
+
+    // Remove the private key from the data stream.
+    $this->dataStream->set('private_key', '')->save();
+
+    // Test that posting without a private key is denied.
+    $request = Request::create($uri, 'POST', [], [], [], [], Json::encode($test_data));
+    $response = $this->processRequest($request);
+    $this->assertEquals(403, $response->getStatusCode());
+
+    // Test that posting with an empty private key is denied.
+    $request = Request::create($uri, 'POST', ['private_key' => ''], [], [], [], Json::encode($test_data));
+    $response = $this->processRequest($request);
+    $this->assertEquals(403, $response->getStatusCode());
   }
 
   /**

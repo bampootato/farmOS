@@ -47,9 +47,11 @@ The data stream module provides a `basic` data stream type. Basic data streams
 receive data via the farmOS API and save data to the farmOS SQL database. Each
 basic data stream represents a single "value"; a sensor that records
 temperature and humidity would provide two data streams. Data can be accessed
-via the API with the `private_key`, or by anyone if the data stream is set to
-`public`. Basic data streams also provide simple ways to view data in a
-table or graph, and export as CSV.
+via the API with the `private_key` (provided as a `private_key` query or body
+parameter, or an `X-Private-Key` header), or by anyone if the data stream is
+set to `public`. Data stream requests are denied if the data stream does not
+have a `private_key`. Basic data streams also provide simple ways to view data
+in a table or graph, and export as CSV.
 
 ### Listener (Legacy) data stream
 
