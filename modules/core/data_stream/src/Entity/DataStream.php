@@ -166,7 +166,7 @@ class DataStream extends ContentEntityBase implements DataStreamInterface {
    *   A new unique key.
    */
   public static function createUniqueKey() {
-    return hash('md5', (string) mt_rand());
+    return bin2hex(random_bytes(16));
   }
 
   /**

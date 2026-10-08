@@ -26,16 +26,18 @@ trait DataStreamPrivateKeyAccess {
   protected function requestHasValidPrivateKey(DataStreamInterface $stream, Request $request) {
 
     // Get the data stream private key.
-    $private_key = $stream->getPrivateKey();
+    $private_key = (string) $stream->getPrivateKey();
 
-    // Check if the private key matches.
-    // Private key may be passed via query string or request body.
-    $request_private_key = $request->query->get('private_key', NULL) ?? $request->request->get('private_key', '');
-    if ($private_key == $request_private_key) {
-      return TRUE;
+    // Deny access if the data stream does not have a private key.
+    if ($private_key === '') {
+      return FALSE;
     }
 
-    return FALSE;
+    // Check if the private key matches.
+    // Private key may be passed via X-Private-Key header, query string or
+    // request body.
+    $request_private_key = $request->headers->get('X-Private-Key') ?? $request->query->get('private_key') ?? $request->request->get('private_key');
+    return is_string($request_private_key) && hash_equals($private_key, $request_private_key);
   }
 
 }

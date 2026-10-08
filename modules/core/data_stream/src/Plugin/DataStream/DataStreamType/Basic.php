@@ -16,7 +16,6 @@ use Drupal\data_stream\Entity\DataStreamInterface;
 use Drupal\data_stream\Event\DataStreamEvent;
 use Drupal\data_stream\Traits\DataStreamPrivateKeyAccess;
 use Drupal\fraction\Fraction;
-use Drupal\jsonapi\Exception\UnprocessableHttpEntityException;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\EventDispatcher\EventDispatcherInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -25,6 +24,7 @@ use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\HttpKernel\Exception\MethodNotAllowedHttpException;
+use Symfony\Component\HttpKernel\Exception\UnprocessableEntityHttpException;
 
 /**
  * Provides the basic data stream type.
@@ -244,13 +244,13 @@ class Basic extends DataStreamTypeBase implements DataStreamStorageInterface, Da
 
     $limit = $max_limit;
     if (isset($params['limit'])) {
-      $limit = $params['limit'];
+      $limit = filter_var($params['limit'], FILTER_VALIDATE_INT);
 
-      // Bail if more than the max is requested.
-      // Only allow 100k max data points to prevent exhausting PHP's memory,
-      // which is a potential DDoS vector.
-      if ($limit > $max_limit) {
-        throw new UnprocessableHttpEntityException();
+      // Bail if the limit is not a positive integer, or if more than the max
+      // is requested. Only allow 100k max data points to prevent exhausting
+      // PHP's memory, which is a potential DDoS vector.
+      if ($limit === FALSE || $limit < 1 || $limit > $max_limit) {
+        throw new UnprocessableEntityHttpException();
       }
     }
     $params['limit'] = $limit;
@@ -338,7 +338,7 @@ class Basic extends DataStreamTypeBase implements DataStreamStorageInterface, Da
 
     $offset = 0;
     if (isset($params['offset']) && is_numeric($params['offset'])) {
-      $offset = $params['offset'];
+      $offset = max(0, (int) $params['offset']);
     }
 
     if (isset($params['limit']) && is_numeric($params['limit'])) {

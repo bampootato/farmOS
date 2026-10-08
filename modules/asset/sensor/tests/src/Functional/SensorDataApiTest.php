@@ -147,6 +147,26 @@ class SensorDataApiTest extends FarmBrowserTestBase {
     $response = $this->processRequest('GET', $url);
     $data = Json::decode((string) $response->getBody());
     $this->assertEquals(4, count($data));
+
+    // Post data with the private key in the X-Private-Key header.
+    $headers = [RequestOptions::HEADERS => ['X-Private-Key' => $this->asset->get('private_key')->value]];
+    $response = $this->processRequest('POST', $url, $headers + $payload);
+    $this->assertEquals(201, $response->getStatusCode());
+
+    // Test that an invalid limit is rejected.
+    $response = $this->processRequest('GET', $url, [RequestOptions::QUERY => ['limit' => -1]]);
+    $this->assertEquals(422, $response->getStatusCode());
+
+    // Remove the private key from the asset.
+    $this->asset->set('private_key', '')->save();
+
+    // Test that posting without a private key is denied.
+    $response = $this->processRequest('POST', $url, $payload);
+    $this->assertEquals(403, $response->getStatusCode());
+
+    // Test that posting with an empty private key is denied.
+    $response = $this->processRequest('POST', $url, [RequestOptions::QUERY => ['private_key' => '']] + $payload);
+    $this->assertEquals(403, $response->getStatusCode());
   }
 
   /**
